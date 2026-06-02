@@ -12,6 +12,8 @@
 ![built with](https://img.shields.io/badge/built%20with-Claude%20Opus%204.8-D77655?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-FF6A3C?style=flat-square)
 
+### 🕹️ [**[ PLAY IN BROWSER ]**](https://rakhimv.github.io/nullstern/)
+
 </div>
 
 ---
