@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NULLSTERN — top-down survival</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#05090a;cursor:crosshair}
+  #app{display:block;width:100vw;height:100vh}
+  a{color:inherit}
+
+  /* --- HUD: mono, phosphor/amber --- */
+  #hud{position:fixed;inset:0;z-index:5;pointer-events:none;
+    font:600 13px/1.4 'Consolas','SFMono-Regular',ui-monospace,monospace;letter-spacing:.14em;
+    color:rgba(255,196,120,.62);text-transform:uppercase;text-shadow:0 0 7px rgba(255,150,60,.35)}
+  #hud .tl{position:absolute;left:24px;top:20px}
+  #hud .tl b{color:rgba(255,225,180,.9);font-weight:700}
+  #hud .tl span{display:block;font-weight:400;font-size:11px;letter-spacing:.30em;
+    color:rgba(120,210,170,.5);margin-top:5px}
+  #hud .tr{position:absolute;right:24px;top:20px;text-align:right}
+  #hud .tr #lvl{font-size:18px;font-weight:800;letter-spacing:.22em;color:rgba(255,150,90,.88);
+    text-shadow:0 0 10px rgba(255,90,40,.45)}
+  #hud .tr #score{font-size:12px;letter-spacing:.18em;color:rgba(120,220,170,.6);margin-top:4px}
+  #hud .wave{position:absolute;right:24px;top:70px;color:rgba(255,120,90,.7);font-size:12px;letter-spacing:.2em;text-align:right}
+  #hud .bl{position:absolute;left:24px;bottom:22px;font-size:11px;letter-spacing:.22em}
+  #hud .bl .bar{display:inline-block;width:130px;height:9px;margin-left:8px;vertical-align:middle;
+    border:1px solid rgba(255,150,60,.4);position:relative;top:-1px}
+  #hud .bl .bar i{display:block;height:100%;width:100%;
+    background:linear-gradient(90deg,rgba(255,90,60,.9),rgba(255,180,90,.9));transition:width .15s}
+  #hud .kick{position:absolute;left:24px;bottom:46px;color:rgba(150,220,255,.85);font-size:12px;letter-spacing:.18em}
+  #hud .ammo{position:absolute;right:24px;bottom:46px;color:rgba(255,210,150,.8);font-size:15px;letter-spacing:.18em}
+  #hud .ammo b{color:rgba(255,235,200,.95);font-weight:800}
+  #hud .ammo.reload b{color:rgba(120,220,170,.95);animation:pulse 0.6s ease-in-out infinite}
+  #hud .rec{position:absolute;right:24px;bottom:22px;color:rgba(255,90,80,.7)}
+  #hud .rec .dot{display:inline-block;width:9px;height:9px;border-radius:50%;
+    background:#ff4438;margin-right:7px;vertical-align:middle;animation:blink 1.4s steps(1) infinite}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.15}}
+
+  /* level banner */
+  #banner{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(1);z-index:6;
+    pointer-events:none;font:800 46px/1 'Consolas',ui-monospace,monospace;letter-spacing:.4em;
+    color:rgba(255,170,90,.95);text-transform:uppercase;text-shadow:0 0 26px rgba(255,80,30,.6);
+    opacity:0;transition:opacity .4s}
+  #banner.show{opacity:1;animation:bannerpop .5s ease-out}
+  @keyframes bannerpop{0%{transform:translate(-50%,-50%) scale(.7)}100%{transform:translate(-50%,-50%) scale(1)}}
+
+  /* crosshair (first-person) */
+  #cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;
+    width:18px;height:18px;pointer-events:none;opacity:0;transition:opacity .3s}
+  #cross::before,#cross::after{content:'';position:absolute;background:rgba(255,210,150,.7);
+    box-shadow:0 0 5px rgba(255,150,60,.6)}
+  #cross::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
+  #cross::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
+
+  /* damage flash */
+  #dmg{position:fixed;inset:0;z-index:6;pointer-events:none;opacity:0;transition:opacity .25s;
+    box-shadow:inset 0 0 200px 40px rgba(200,20,20,.85), inset 0 0 60px 10px rgba(255,40,40,.5)}
+
+  /* control hint */
+  #hint{position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:5;
+    pointer-events:none;font:400 12px/1.6 'Consolas',ui-monospace,monospace;
+    letter-spacing:.20em;color:rgba(190,220,210,.42);text-align:center;text-transform:uppercase;transition:opacity 1s}
+
+  /* start prompt */
+  #prompt{position:fixed;left:50%;top:60%;transform:translate(-50%,-50%);z-index:5;
+    pointer-events:none;font:700 17px/1.4 'Consolas',ui-monospace,monospace;letter-spacing:.22em;
+    color:rgba(120,255,180,.95);text-transform:uppercase;text-shadow:0 0 14px rgba(60,255,150,.5);
+    opacity:0;transition:opacity .3s;border:1px solid rgba(120,255,180,.45);padding:11px 20px;
+    background:rgba(6,20,14,.6)}
+  #prompt.show{opacity:1;animation:pulse 1.4s ease-in-out infinite}
+
+  /* overlays (menu + game over) */
+  .overlay{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;cursor:pointer;transition:opacity 1s ease}
+  #intro{background:radial-gradient(ellipse at center,rgba(16,34,32,.4),rgba(3,7,8,.97))}
+  #over{background:radial-gradient(ellipse at center,rgba(60,8,8,.5),rgba(5,2,2,.98));opacity:0;pointer-events:none;z-index:11}
+  #over.show{opacity:1;pointer-events:auto}
+  .hide{opacity:0!important;pointer-events:none!important}
+
+  /* one accent (amber) + neutral text — keeps it serious, not rainbow */
+  .title{font:900 82px/1 'Consolas',ui-monospace,monospace;letter-spacing:.40em;margin-left:.40em;
+    color:rgba(236,238,240,.97);text-transform:uppercase;text-shadow:0 0 38px rgba(255,160,70,.28)}
+  .rule{width:150px;height:2px;margin-top:20px;
+    background:linear-gradient(90deg,transparent,rgba(255,180,90,.85),transparent)}
+  .tag{margin-top:16px;font:500 13px/1.5 'Consolas',ui-monospace,monospace;letter-spacing:.46em;
+    color:rgba(158,172,176,.6);text-transform:uppercase}
+  .best{margin-top:24px;font:500 13px/1.5 'Consolas',ui-monospace,monospace;letter-spacing:.3em;
+    color:rgba(168,182,185,.7);text-transform:uppercase}
+  .best b{color:rgba(255,190,110,.98);font-weight:800;font-size:18px;margin-left:8px}
+  .cta{margin-top:30px;font:700 13px/1 'Consolas',ui-monospace,monospace;letter-spacing:.3em;
+    color:rgba(255,205,150,.95);text-transform:uppercase;padding:13px 30px;
+    border:1px solid rgba(255,180,90,.5);background:rgba(28,20,10,.45);animation:pulse 2.4s ease-in-out infinite}
+  /* aligned controls grid (equal columns + key chips) */
+  .keys{margin-top:34px;display:grid;grid-template-columns:repeat(2,210px);gap:11px 30px;justify-content:center}
+  .keys div{display:flex;align-items:center;gap:13px;font:500 12px/1 'Consolas',ui-monospace,monospace;
+    letter-spacing:.14em;color:rgba(165,180,182,.7);text-transform:uppercase}
+  .keys kbd{flex:none;min-width:66px;text-align:center;padding:6px 8px;font:800 11px/1 'Consolas',ui-monospace,monospace;
+    color:rgba(255,205,150,.95);background:rgba(255,180,90,.08);border:1px solid rgba(255,180,90,.4);border-radius:4px}
+  .foot{position:absolute;bottom:26px;font:500 11px/1.4 'Consolas',ui-monospace,monospace;letter-spacing:.2em;
+    color:rgba(150,165,168,.5);text-transform:uppercase}
+  .foot a{pointer-events:auto;color:rgba(255,190,120,.85);text-decoration:none;border-bottom:1px solid rgba(255,190,120,.3)}
+  .foot a:hover{color:#fff}
+  .over-t{font:900 56px/1 'Consolas',ui-monospace,monospace;letter-spacing:.4em;margin-left:.4em;
+    color:rgba(255,80,66,.94);text-transform:uppercase;text-shadow:0 0 30px rgba(255,40,30,.5)}
+  .over-s{margin-top:18px;font:400 12px/1.6 'Consolas',ui-monospace,monospace;letter-spacing:.32em;
+    color:rgba(210,165,158,.6);text-transform:uppercase}
+  #overStats{margin-top:16px;font:600 14px/1.6 'Consolas',ui-monospace,monospace;letter-spacing:.24em;color:rgba(235,200,160,.85)}
+  #overStats b{color:rgba(255,225,180,1)}
+  .retry{margin-top:24px;font:700 13px/1 'Consolas',ui-monospace,monospace;letter-spacing:.3em;
+    color:rgba(245,235,225,.9);text-transform:uppercase;padding:12px 28px;
+    border:1px solid rgba(255,120,90,.5);background:rgba(40,12,8,.45);animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.95}}
+
+  /* pause / settings (ESC) */
+  #pause{background:radial-gradient(ellipse at center,rgba(12,18,22,.6),rgba(3,7,9,.97));
+    opacity:0;pointer-events:none;cursor:default;z-index:12}
+  #pause.show{opacity:1;pointer-events:auto}
+  #pause .pt{font:900 44px/1 'Consolas',ui-monospace,monospace;letter-spacing:.4em;margin-left:.4em;
+    color:rgba(232,238,240,.95);text-transform:uppercase;text-shadow:0 0 24px rgba(255,160,70,.26)}
+  .opts{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
+  .opt{font:700 12px/1 'Consolas',ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;
+    color:rgba(230,235,235,.9);background:rgba(255,180,90,.06);border:1px solid rgba(255,180,90,.4);
+    padding:12px 16px;cursor:pointer;transition:.15s;border-radius:4px}
+  .opt:hover{border-color:rgba(255,180,90,.9);color:#fff;background:rgba(255,180,90,.16)}
+  .opt.off{color:rgba(255,110,100,.85);border-color:rgba(255,110,100,.45);background:rgba(255,80,70,.06)}
+
+  /* preloader (loading screen) */
+  #load{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;
+    background:radial-gradient(ellipse at center,rgba(14,20,22,.6),rgba(2,5,6,.99));transition:opacity .6s ease}
+  #load.hide{opacity:0;pointer-events:none}
+  #load .ldt{font:900 66px/1 'Consolas',ui-monospace,monospace;letter-spacing:.42em;margin-left:.42em;
+    color:rgba(236,238,240,.96);text-transform:uppercase;text-shadow:0 0 36px rgba(255,160,70,.3)}
+  #load .ldbar{width:300px;height:7px;border:1px solid rgba(255,180,90,.45);background:rgba(255,180,90,.05)}
+  #load .ldbar i{display:block;height:100%;width:0%;transition:width .25s;
+    background:linear-gradient(90deg,rgba(255,140,60,.9),rgba(255,205,120,.95))}
+  #load .ldp{font:600 12px/1 'Consolas',ui-monospace,monospace;letter-spacing:.34em;
+    color:rgba(255,190,120,.8);text-transform:uppercase}
+</style>
+</head>
+<body>
+<canvas id="app"></canvas>
+
+<div id="load">
+  <div class="ldt">NULLSTERN</div>
+  <div class="ldbar"><i id="ldfill"></i></div>
+  <div class="ldp" id="ldpct">LOADING 0%</div>
+</div>
+
+<div id="cross"></div>
+<div id="banner"></div>
+
+<div id="hud">
+  <div class="tl"><b>NULLSTERN</b><span id="loc">UNIT LSTR-512 · MED-BAY S-23</span></div>
+  <div class="tr"><div id="lvl">LEVEL 1</div><div id="score">SCORE 0 · BEST 0</div></div>
+  <div class="wave" id="wave">STANDBY</div>
+  <div class="bl">VITAL<span class="bar"><i id="hpbar"></i></span></div>
+  <div class="kick" id="kick">KICK [F]</div>
+  <div class="ammo" id="ammoBox">AMMO <b id="ammo">30</b> / 30</div>
+  <div class="rec"><span class="dot"></span><span id="clock">REC 00:00</span></div>
+</div>
+
+<div id="dmg"></div>
+<div id="prompt">PRESS [E] TO START THE DEFENSE</div>
+
+<div id="hint">WASD MOVE&nbsp;·&nbsp;LMB FIRE&nbsp;·&nbsp;R RELOAD&nbsp;·&nbsp;F KICK&nbsp;·&nbsp;E START&nbsp;·&nbsp;V FIRST-PERSON&nbsp;·&nbsp;M SOUND</div>
+
+<!-- GAME OVER -->
+<div id="over" class="overlay">
+  <div class="over-t">Signal Lost</div>
+  <div id="overStats">REACHED LEVEL <b>1</b> · SCORE <b>0</b> · BEST <b>0</b></div>
+  <div class="over-s">the facility has gone silent</div>
+  <div class="retry">click to redeploy</div>
+  <div class="foot">made by <a href="https://github.com/Rakhimv" target="_blank" onclick="event.stopPropagation()">AziCode</a></div>
+</div>
+
+<!-- MENU -->
+<div id="intro" class="overlay">
+  <div class="title">NULLSTERN</div>
+  <div class="rule"></div>
+  <div class="tag">top-down survival horror</div>
+  <div class="best">BEST SCORE <b id="menuBest">0</b></div>
+  <div class="cta">click to enter</div>
+  <div class="keys">
+    <div><kbd>WASD</kbd> move</div>
+    <div><kbd>MOUSE</kbd> aim / look</div>
+    <div><kbd>LMB</kbd> fire</div>
+    <div><kbd>R</kbd> reload</div>
+    <div><kbd>F</kbd> kick</div>
+    <div><kbd>E</kbd> start defense</div>
+    <div><kbd>V</kbd> 1st / 3rd person</div>
+    <div><kbd>ESC</kbd> pause</div>
+  </div>
+  <div class="foot">a fan-made arcade by <a href="https://github.com/Rakhimv" target="_blank" onclick="event.stopPropagation()">AziCode</a></div>
+</div>
+
+<!-- PAUSE / SETTINGS -->
+<div id="pause" class="overlay">
+  <div class="pt">Paused</div>
+  <div class="keys">
+    <div><kbd>WASD</kbd> move</div>
+    <div><kbd>MOUSE</kbd> aim / look</div>
+    <div><kbd>LMB</kbd> fire</div>
+    <div><kbd>R</kbd> reload</div>
+    <div><kbd>F</kbd> kick</div>
+    <div><kbd>E</kbd> start defense</div>
+    <div><kbd>V</kbd> 1st / 3rd person</div>
+    <div><kbd>M</kbd> mute all</div>
+  </div>
+  <div class="opts">
+    <button class="opt" id="optMusic">MUSIC: ON</button>
+    <button class="opt" id="optEnemy">ENEMY SFX: ON</button>
+    <button class="opt" id="optSfx">WEAPON SFX: ON</button>
+  </div>
+  <div class="cta" style="animation:none;margin-top:26px">press ESC to resume</div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module" src="./game.js"></script>
+</body>
+</html>
